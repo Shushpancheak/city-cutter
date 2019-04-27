@@ -5,6 +5,7 @@ from telegram.ext import CommandHandler
 import logging
 import constants
 import googlemaps
+from geopy.distance import geodesic
 
 
 def start(bot, update):
@@ -33,13 +34,22 @@ def cut_the_city(bot, update, args):
 
     gmaps = googlemaps.Client(key=GMAPS_KEY)
 
+    # City geocode
     city_geocode = gmaps.geocode(city_name)
     logger.debug("Found city {}, with this geocode info: {}".format(city_name, str(city_geocode)))
     location_set = city_geocode[0]['geometry']['location']
     location = (location_set['lat'], location_set['lng'])
     logger.debug("Parsed location: {}".format(str(location)))
 
-    places_info = gmaps.places(place_name, location=location)
+    # Finding City radius
+    bound_loc_set = city_geocode[0]['geometry']['bounds']['northeast']
+    bound_loc = (bound_loc_set['lat'], bound_loc_set['lng'])
+
+    city_radius = abs(geodesic(location, bound_loc).m)
+    logger.debug("Found {}'s city radius: {}".format(city_name, str(city_radius)))
+
+    # Finding places
+    places_info = gmaps.places(place_name, location=location, radius=city_radius)
     logger.debug("Found list of places: {}".format(str(places_info)))
 
 
