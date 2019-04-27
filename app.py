@@ -14,6 +14,24 @@ def cut_the_city(bot, update, args):
     logger.debug("Called cut the city with following arguments:\n{},\n{},\n{}".format(str(bot), str(update), str(args)))
     bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
 
+    city_name = ""
+    place_name = ""
+    i = 0
+    for word in args:
+        if word[0] == "'":
+            i += 1
+        if i == 1:
+            city_name += word + " "
+        else:
+            place_name += word + " "
+
+    city_name = city_name.replace("'", "")
+    place_name = place_name.replace("'", "")
+
+    logger.debug("Got these city/place names: {}, {}".format(city_name, place_name))
+
+    
+
 
 # Setting logger
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
