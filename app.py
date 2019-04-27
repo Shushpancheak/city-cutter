@@ -1,17 +1,19 @@
 #!python3.7
 from telegram.ext import Updater
+from telegram.ext import CommandHandler
 import logging
 import constants
 
 
-def cut_the_city(update, context, *args):
-    logger.debug("Called cut the city with following arguments:\n{},\n{},\n{}".format(str(update), str(context), str(args)))
+def start(bot, update):
+    logger.debug("Called start with following arguments:\n{},\n{}".format(str(bot), str(update)))
+    bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
 
-    bot = context.bot
-    chat_id = update.message.chat_id
 
-    bot.send_message(chat_id=chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
-    pass
+def cut_the_city(bot, update, args):
+    logger.debug("Called cut the city with following arguments:\n{},\n{},\n{}".format(str(bot), str(update), str(args)))
+    bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
+
 
 # Setting logger
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -29,3 +31,8 @@ with open('config.ini') as config:
 
 bot_updater = Updater(token=TOKEN)
 bot_dispatcher = bot_updater.dispatcher
+cut_the_city_handler = CommandHandler('cut_the_city', cut_the_city, pass_args=True)
+bot_dispatcher.add_handler(cut_the_city_handler)
+
+bot_updater.start_polling()
+bot_updater.idle()
