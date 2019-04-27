@@ -1,8 +1,10 @@
-#!python3.7
+#!/bin/usr/env/python
+
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 import logging
 import constants
+import googlemaps
 
 
 def start(bot, update):
@@ -25,12 +27,21 @@ def cut_the_city(bot, update, args):
         else:
             place_name += word + " "
 
-    city_name = city_name.replace("'", "")
-    place_name = place_name.replace("'", "")
-
+    city_name = city_name.replace("'", "").rstrip()
+    place_name = place_name.replace("'", "").rstrip()
     logger.debug("Got these city/place names: {}, {}".format(city_name, place_name))
 
-    
+    gmaps = googlemaps.Client(key=GMAPS_KEY)
+
+    city_geocode = gmaps.geocode(city_name)
+    logger.debug("Found city {}, with this geocode info: {}".format(city_name, str(city_geocode)))
+    location_set = city_geocode[0]['geometry']['location']
+    location = (location_set['lat'], location_set['lng'])
+    logger.debug("Parsed location: {}".format(str(location)))
+
+    places_info = gmaps.places(place_name, location=location)
+    logger.debug("Found list of places: {}".format(str(places_info)))
+
 
 
 # Setting logger
@@ -44,10 +55,13 @@ logger.debug("Started debugging")
 
 # Reading token
 with open('config.ini') as config:
-    TOKEN = config.readline().rstrip()
-    logger.debug("found TOKEN == {}".format(TOKEN))
+    TG_TOKEN = config.readline().rstrip()
+    logger.debug("found TG_TOKEN == {}".format(TG_TOKEN))
 
-bot_updater = Updater(token=TOKEN)
+    GMAPS_KEY = config.readline().rstrip()
+    logger.debug("found GMAPS_KEY == {}".format(GMAPS_KEY))
+
+bot_updater = Updater(token=TG_TOKEN)
 bot_dispatcher = bot_updater.dispatcher
 cut_the_city_handler = CommandHandler('cut_the_city', cut_the_city, pass_args=True)
 bot_dispatcher.add_handler(cut_the_city_handler)
