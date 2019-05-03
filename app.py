@@ -9,6 +9,7 @@ from geopy.distance import geodesic
 from io import BytesIO
 from PIL import Image
 import requests
+import math
 
 
 def start(bot, update):
@@ -46,25 +47,50 @@ def cut_the_city(bot, update, args):
         logger.debug("Parsed location: {}".format(str(city_loc)))
 
         # Finding City radius.
-        bound_loc_set = city_geocode[0]['geometry']['bounds']['northeast']
-        bound_loc = (bound_loc_set['lat'], bound_loc_set['lng'])
-
-        city_radius = abs(geodesic(city_loc, bound_loc).m)
+        if 'bounds' in city_geocode[0]['geometry']:
+            bound_loc_set = city_geocode[0]['geometry']['bounds']['northeast']
+            bound_loc = (bound_loc_set['lat'], bound_loc_set['lng'])
+            city_radius = int(abs(geodesic(city_loc, bound_loc).m))
+        else:
+            city_radius = constants.CUT_THE_CITY_DEFAULT_CITY_RADIUS
         logger.debug("Found {}'s city radius: {}".format(city_name, str(city_radius)))
 
         # Finding places.
-        places_info = gmaps.places(place_name, location=city_loc, radius=city_radius)
+        places_info = gmaps.places_nearby(name=place_name, location=city_loc, rank_by='distance')
         logger.debug("Found list of places: {}".format(str(places_info)))
 
         # Stroing their coordinates.
-        places_locs = [(found_place['geometry']['location']['lat'],
+        places_locs_raw = [(found_place['geometry']['location']['lat'],
                         found_place['geometry']['location']['lng'])
                         for found_place in places_info['results']]
+        logger.debug("Raw places coordinates: {}".format(str(places_locs_raw)))
+
+        # Deleting those who exceed city radius
+        logger.debug("Places distances ({}):".format(str(len(places_locs_raw))))
+        places_locs = []
+        for place_loc_raw in places_locs_raw:
+            logger.debug(str(abs(geodesic(city_loc, place_loc_raw).m)))
+            if abs(geodesic(city_loc, place_loc_raw).m) > city_radius:
+                logger.debug("^EXCEEDS")
+            else:
+                places_locs += [place_loc_raw]
+
+        logger.debug("Now we have ({}) places:".format(str(len(places_locs))))
+
+        # Getting the zoom which is in [0, 21]
+        max_dist = 0
+        for place_loc1 in places_locs:
+            for place_loc2 in places_locs:
+                max_dist = max(max_dist, geodesic(place_loc1, place_loc2).m)
+
+        zoom = math.ceil(math.log(constants.EARTH_CIRCUMFERENCE / max_dist, 2))
+        logger.debug("Calculated zoom: {}".format(str(zoom)))
 
         # Forming a request to gmaps API to get an image.
         request_params = {
-            'center': city_name,
+            'center': '(' + str(city_loc[0]) + ',' + str(city_loc[1]) + ')',
             'size': constants.CUT_THE_CITY_IMAGE_SIZE,
+            'zoom': str(zoom),
             'scale': constants.CUT_THE_CITY_IMAGE_SCALE,
             'markers': 'size:' + constants.CUT_THE_CITY_IMAGE_POINTERS_SIZE,
             'key': GMAPS_KEY
@@ -85,6 +111,25 @@ def cut_the_city(bot, update, args):
 
         # Building the actual image
         image = Image.open(BytesIO(response.content))
+
+        # Converting everything to pixels
+        # Using this formula: pixelCoordinate = worldCoordinate * 2^zoomLevel.
+        # Multiplying by 2 becasue of the scale.
+        COORD_MODIFIER = pow(2, zoom + constants.CUT_THE_CITY_IMAGE_SCALE_INT - 1)
+        def world_coords_to_px(coords):
+            return (coords[1] * COORD_MODIFIER, coords[0] * COORD_MODIFIER)
+        center_px_coords = world_coords_to_px(city_loc)
+        corner_px_coords = (center_px_coords[0] - constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2,
+                            center_px_coords[1] + constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2)
+        places_px_coords = [world_coords_to_px(loc) for loc in places_locs]
+
+        logger.debug("Calculated absolute px coordinates: {}".format(str(places_px_coords)))
+
+        # Now relative to corner
+        places_px_rel_coords = [(loc[0] - corner_px_coords[0], -loc[1] + corner_px_coords[1])
+                                for loc in places_px_coords]
+
+        logger.debug("Calculated px coordinates: {}".format(str(places_px_rel_coords)))
 
         # Sending the final result
         final_image_file = BytesIO()
