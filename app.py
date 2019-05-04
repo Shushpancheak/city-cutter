@@ -2,24 +2,38 @@
 
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
-import logging
 import constants
+import logging
 import googlemaps
 from geopy.distance import geodesic
 from io import BytesIO
+from PIL import ImageDraw
 from PIL import Image
+from PIL import ImageFont
 import requests
 import math
 
+from VoronoiDiagram import voronoi
+
 
 def start(bot, update):
-    logger.debug("Called start with following arguments:\n{},\n{}".format(str(bot), str(update)))
-    bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
+    """
+    /start command. Types in a hello words.
+    """
+    logger.debug("Called start with following arguments: \
+\n{},\n{}".format(str(bot), str(update)))
+    bot.send_message(chat_id=update.message.chat_id,
+                     text=constants.CUT_THE_CITY_FIRST_MSG)
 
 
 def cut_the_city(bot, update, args):
-    logger.debug("Called cut the city with following arguments:\n{},\n{},\n{}".format(str(bot), str(update), str(args)))
-    bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_FIRST_MSG)
+    """
+    Main command.
+    """
+    logger.debug("Called cut the city with following arguments: \
+\n{},\n{},\n{}".format(str(bot), str(update), str(args)))
+    bot.send_message(chat_id=update.message.chat_id,
+                     text=constants.CUT_THE_CITY_FIRST_MSG)
 
     try:
         city_name = ""
@@ -35,13 +49,15 @@ def cut_the_city(bot, update, args):
 
         city_name = city_name.replace("'", "").rstrip()
         place_name = place_name.replace("'", "").rstrip()
-        logger.debug("Got these city/place names: {}, {}".format(city_name, place_name))
+        logger.debug("Got these city/place names: {}, {}".format(city_name,
+                                                                 place_name))
 
         gmaps = googlemaps.Client(key=GMAPS_KEY)
 
         # City geocode.
         city_geocode = gmaps.geocode(city_name)
-        logger.debug("Found city {}, with this geocode info: {}".format(city_name, str(city_geocode)))
+        logger.debug("Found city {}, with this geocode\
+info: {}".format(city_name, str(city_geocode)))
         location_set = city_geocode[0]['geometry']['location']
         city_loc = (location_set['lat'], location_set['lng'])
         logger.debug("Parsed location: {}".format(str(city_loc)))
@@ -53,29 +69,21 @@ def cut_the_city(bot, update, args):
             city_radius = int(abs(geodesic(city_loc, bound_loc).m))
         else:
             city_radius = constants.CUT_THE_CITY_DEFAULT_CITY_RADIUS
-        logger.debug("Found {}'s city radius: {}".format(city_name, str(city_radius)))
+        logger.debug("Found {}'s city radius: {}".format(city_name,
+                                                         str(city_radius)))
 
         # Finding places.
-        places_info = gmaps.places_nearby(name=place_name, location=city_loc, rank_by='distance')
+        places_info = gmaps.places_nearby(name=place_name, location=city_loc,
+                                          rank_by='distance')
         logger.debug("Found list of places: {}".format(str(places_info)))
 
         # Stroing their coordinates.
-        places_locs_raw = [(found_place['geometry']['location']['lat'],
+        places_locs = [(found_place['geometry']['location']['lat'],
                         found_place['geometry']['location']['lng'])
+                       for found_place in places_info['results']]
+        places_names = [found_place['name']
                         for found_place in places_info['results']]
-        logger.debug("Raw places coordinates: {}".format(str(places_locs_raw)))
-
-        # Deleting those who exceed city radius
-        logger.debug("Places distances ({}):".format(str(len(places_locs_raw))))
-        places_locs = []
-        for place_loc_raw in places_locs_raw:
-            logger.debug(str(abs(geodesic(city_loc, place_loc_raw).m)))
-            if abs(geodesic(city_loc, place_loc_raw).m) > city_radius:
-                logger.debug("^EXCEEDS")
-            else:
-                places_locs += [place_loc_raw]
-
-        logger.debug("Now we have ({}) places:".format(str(len(places_locs))))
+        logger.debug("Places coordinates: {}".format(str(places_locs)))
 
         # Getting the zoom which is in [0, 21]
         max_dist = 0
@@ -86,70 +94,115 @@ def cut_the_city(bot, update, args):
         zoom = math.ceil(math.log(constants.EARTH_CIRCUMFERENCE / max_dist, 2))
         logger.debug("Calculated zoom: {}".format(str(zoom)))
 
+        # Converting everything to pixels
+        # Using this formula: pixelCoordinate = worldCoordinate * 2^zoomLevel.
+        # Multiplying by 2 becasue of the scale.
+        COORD_MODIFIER = pow(2, zoom +
+                             constants.CUT_THE_CITY_IMAGE_SCALE_INT - 1)
+
+        def lng_lat_coords_to_px(coords):
+            '''
+            Converts (lng, lat) to (pixel_x, pixel_y)
+            '''
+            siny = math.sin(coords[0] * math.pi / 180)
+            world_coords = (
+                256 * (0.5 + coords[1] / 360),
+                256 * (0.5 - math.log((1 + siny) / (1 - siny)) / (4 * math.pi))
+            )
+
+            return (world_coords[0] * COORD_MODIFIER,
+                    world_coords[1] * COORD_MODIFIER)
+
+        center_px_coords = lng_lat_coords_to_px(city_loc)
+        corner_px_coords = (center_px_coords[0] -
+                            constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2,
+                            center_px_coords[1] -
+                            constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2)
+        places_px_coords = [lng_lat_coords_to_px(loc) for loc in places_locs]
+
+        logger.debug("Calculated absolute px coordinates: {}".format(
+            str(places_px_coords)))
+
+        # Now relative to corner
+        places_px_rel_coords = [(loc[0] - corner_px_coords[0],
+                                 loc[1] - corner_px_coords[1])
+                                for loc in places_px_coords]
+
+        logger.debug("Calculated px coordinates: {}".format(
+            str(places_px_rel_coords)))
+
+        # For convinience
+        places_px_coords = places_px_rel_coords
+
         # Forming a request to gmaps API to get an image.
         request_params = {
-            'center': '(' + str(city_loc[0]) + ',' + str(city_loc[1]) + ')',
+            'center': str(city_loc[0]) + ',' + str(city_loc[1]),
             'size': constants.CUT_THE_CITY_IMAGE_SIZE,
             'zoom': str(zoom),
             'scale': constants.CUT_THE_CITY_IMAGE_SCALE,
-            'markers': 'size:' + constants.CUT_THE_CITY_IMAGE_POINTERS_SIZE,
-            'key': GMAPS_KEY
+            'key': GMAPS_KEY,
+            'markers': 'size:' + constants.CUT_THE_CITY_IMAGE_POINTERS_SIZE
         }
-
         if len(places_locs) > 0:
             request_params['markers'] += '%7C'
-            request_params['markers'] += '%7C'.join([','.join((str(loc[0]), str(loc[1])))
+            request_params['markers'] += '%7C'.join([','.join((str(loc[0]),
+                                                               str(loc[1])))
                                                      for loc in places_locs])
-
         # Sending request
 
         # Due to lack of requests' way to not force %-encode characters,
         # we should create an url by ourselves.
-        request_params_str = '&'.join('{}={}'.format(key, val) for key, val in request_params.items())
-        response = requests.get(constants.GMAPS_STATIC_MAPS_URL, params=request_params_str)
+        request_params_str = '&'.join('{}={}'.format(key, val)
+                                      for key, val in request_params.items())
+        response = requests.get(constants.GMAPS_STATIC_MAPS_URL,
+                                params=request_params_str)
         response.raise_for_status()
 
         # Building the actual image
-        image = Image.open(BytesIO(response.content))
+        map_image = Image.open(BytesIO(response.content)).convert('RGB')
 
-        # Converting everything to pixels
-        # Using this formula: pixelCoordinate = worldCoordinate * 2^zoomLevel.
-        # Multiplying by 2 becasue of the scale.
-        COORD_MODIFIER = pow(2, zoom + constants.CUT_THE_CITY_IMAGE_SCALE_INT - 1)
-        def world_coords_to_px(coords):
-            return (coords[1] * COORD_MODIFIER, coords[0] * COORD_MODIFIER)
-        center_px_coords = world_coords_to_px(city_loc)
-        corner_px_coords = (center_px_coords[0] - constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2,
-                            center_px_coords[1] + constants.CUT_THE_CITY_IMAGE_SIZE_INT / 2)
-        places_px_coords = [world_coords_to_px(loc) for loc in places_locs]
+        # Changing the image
+        map_draw = ImageDraw.Draw(map_image)
 
-        logger.debug("Calculated absolute px coordinates: {}".format(str(places_px_coords)))
+        voronoi_lines = voronoi.get_voronoi_polygons(places_px_coords,
+                                                     (0, 0, 1280, 1280))
+        logger.debug("Calculated voronoi lines: {}".format(str(voronoi_lines)))
 
-        # Now relative to corner
-        places_px_rel_coords = [(loc[0] - corner_px_coords[0], -loc[1] + corner_px_coords[1])
-                                for loc in places_px_coords]
+        for line in voronoi_lines:
+            map_draw.line([tuple(line[0]), tuple(line[1])], fill='black')
 
-        logger.debug("Calculated px coordinates: {}".format(str(places_px_rel_coords)))
+        font = ImageFont.truetype("arial.ttf", 15)
+
+        i = 0
+        for point in places_px_coords:
+            map_draw.text(point, places_names[i], fill='black', font=font)
+            i += 1
+
+        del map_draw
 
         # Sending the final result
         final_image_file = BytesIO()
-        final_image_file.name = city_name
-        image.save(final_image_file, 'PNG')
+        final_image_file.name = 'pic.png'
+        map_image.save(final_image_file, 'PNG')
         final_image_file.seek(0)
 
-        bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_SUCCESS_MSG)
-        bot.send_photo(chat_id=update.message.chat_id, photo=final_image_file)
+        bot.send_message(chat_id=update.message.chat_id,
+                         text=constants.CUT_THE_CITY_SUCCESS_MSG)
+        bot.send_photo(chat_id=update.message.chat_id,
+                       photo=final_image_file)
     except:
         import traceback
         traceback.print_exc()
-        bot.send_message(chat_id=update.message.chat_id, text=constants.CUT_THE_CITY_ERROR_MSG)
+        bot.send_message(chat_id=update.message.chat_id,
+                         text=constants.CUT_THE_CITY_ERROR_MSG)
 
 
 # Setting logger
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                     level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s -\
+ %(levelname)s - %(message)s',
+                    level=logging.INFO)
 logger = logging.getLogger("logger")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(constants.LOGGING_LEVEL)
 console_handler = logging.StreamHandler()
 logger.addHandler(console_handler)
 logger.debug("Started debugging")
@@ -164,7 +217,8 @@ with open('config.ini') as config:
 
 bot_updater = Updater(token=TG_TOKEN)
 bot_dispatcher = bot_updater.dispatcher
-cut_the_city_handler = CommandHandler('cut_the_city', cut_the_city, pass_args=True)
+cut_the_city_handler = CommandHandler('cut_the_city', cut_the_city,
+                                      pass_args=True)
 bot_dispatcher.add_handler(cut_the_city_handler)
 
 bot_updater.start_polling()
