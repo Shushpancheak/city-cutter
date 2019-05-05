@@ -21,3 +21,5 @@ and the second line is gmaps API key with all possible APIs enabled.
 pip install -r requirements.txt
 python app.py
 ```
+
+You will propably need to change imports in VoronoiDiagram package... And add __init__.py
