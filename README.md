@@ -2,9 +2,10 @@
 A telegram bot that cuts given city with Voronoi diagram according to points that correspond to given place name (store, cinema...)
 
 ## Use
-To use this telegram bot, you should type in PM: "/cut_the_city '<name of city>' '<name of place>'".
+To use this telegram bot, you should type in PM: "/cut_the_city '{name of city}' '{name of place}'".
 If everything goes well, you'll recieve an image. Everything should look like this:
-
+![alt text][example]
+[example]: https://raw.githubusercontent.com/Shushpancheak/City-Cutter/dev/images/example.png "An example"
 
 ## Execution
 You will need config.ini with API keys in it.
