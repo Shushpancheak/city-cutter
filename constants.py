@@ -1,11 +1,11 @@
 import logging
 
 
-CUT_THE_CITY_START_MSG = "Hello!\nUse /cut_the_city 'city_name' 'place_name'\
+CUT_THE_CITY_START_MSG = "Hello!\nUse /cut_the_city 'city_name' 'place_name' \
 \nExample: /cut_the_city 'Barcelona' 'Store'"
-CUT_THE_CITY_FIRST_MSG = "I'm gonna cut this city and give you the image,\
+CUT_THE_CITY_FIRST_MSG = "I'm gonna cut this city and give you the image, \
 unless you've messed something up..."
-CUT_THE_CITY_ERROR_MSG = "Sorry, something's gone wrong. No image for you.\
+CUT_THE_CITY_ERROR_MSG = "Sorry, something's gone wrong. No image for you. \
 Try again!"
 CUT_THE_CITY_SUCCESS_MSG = "Here you go!"
 
