@@ -1,0 +1,3 @@
+[submodule "VoronoiDiagram"]
+	path = VoronoiDiagram
+	url = https://github.com/Shushpancheak/Voronoi-Diagram
