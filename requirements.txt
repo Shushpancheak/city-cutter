@@ -43,7 +43,7 @@ rope==0.12.0
 ruamel-yaml==0.15.46
 six==1.12.0
 urllib3
-Werkzeug==0.15.1
+Werkzeug==0.15.3
 win-inet-pton==1.0.1
 wincertstore==0.2
 wrapt==1.11.1
