@@ -1,6 +1,9 @@
 # City-Cutter
 A telegram bot that cuts given city with Voronoi diagram according to points that correspond to given place name (store, cinema...)
 
+## Motivation
+I saw a [website](http://melbourneschoolzones.com/) that used Voronoi diagram to actually help people locate schools nearby. I tried to generalise this concept by making variable city and points of interest.
+
 ## Use
 To use this telegram bot, you should type in PM: "/cut_the_city '{name of city}' '{name of place}'".
 If everything goes well, you'll recieve an image.
