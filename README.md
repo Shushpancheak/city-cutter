@@ -1,5 +1,5 @@
 # City Cutter
-Similar to [http://melbourneschoolzones.com/](Melbourne School Zones website), City Cutter utilizes Google maps API to create a partition of City map into regions close to each of a given set of places of interest, thus, in theory, providing people some help in deciding which place (school, grocery store, \dots) is closest to them. Everything is encapsulated into a telegram bot's simple command.
+Similar to [Melbourne School Zones website](http://melbourneschoolzones.com/), City Cutter utilizes Google maps API to create a partition of City map into regions close to each of a given set of places of interest, thus, in theory, providing people some help in deciding which place (school, grocery store, \dots) is closest to them. Everything is encapsulated into a telegram bot's simple command.
 
 ## Use
 To use this telegram bot, you should type in PM: "/cut_the_city '{name of city}' '{name of place}'".
