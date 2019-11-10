@@ -1,4 +1,4 @@
-# City-Cutter
+# City Cutter
 A telegram bot that cuts given city with Voronoi diagram according to points that correspond to given place name (store, cinema...)
 
 ## Motivation
